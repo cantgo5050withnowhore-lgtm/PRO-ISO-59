@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISOTOPE P926 // SECURE TERMINAL</title>
+    <style>
+        :root {
+            --bg-color: #0e1317;
+            --term-green: #00ff66;
+            --term-dim-green: #1ed756;
+            --term-cyan: #00d9ff;
+            --term-alert: #ff3333;
+            --term-amber: #ffb000;
+            --panel-bg: rgba(12, 18, 22, 0.85);
+            --border-color: #1a2a32;
+            --font-stack: 'Courier New', Courier, 'Fira Code', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-stack);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--term-green);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-x: hidden;
+            text-shadow: 0 0 4px rgba(0, 255, 102, 0.4);
+        }
+
+        /* Scanline Overlay Effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 999;
+            background-size: 100% 3px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Header & Status Bar */
+        header {
+            border: 1px solid var(--term-green);
+            background: var(--panel-bg);
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.15);
+        }
+
+        .ascii-banner {
+            font-size: 10px;
+            line-height: 1.1;
+            white-space: pre;
+            color: var(--term-cyan);
+            margin-bottom: 12px;
+            overflow-x: auto;
+        }
+
+        .status-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            border-top: 1px dashed var(--term-dim-green);
+            padding-top: 10px;
+        }
+
+        .status-item {
+            margin-right: 15px;
+        }
+
+        .status-val {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        /* Main Grid Layout */
+        .terminal-container {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+            gap: 20px;
+            flex-grow: 1;
+        }
+
+        @media (max-width: 900px) {
+            .terminal-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Workstation Area */
+        .workstation {
+            border: 1px solid var(--border-color);
+            background: var(--panel-bg);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: 1px solid var(--term-dim-green);
+            color: var(--term-dim-green);
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover, .tab-btn.active {
+            background: var(--term-green);
+            color: var(--bg-color);
+            border-color: var(--term-green);
+            box-shadow: 0 0 8px rgba(0, 255, 102, 0.4);
+            font-weight: bold;
+        }
+
+        /* Form Inputs - Command Line Styled */
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: var(--term-cyan);
+            text-transform: uppercase;
+        }
+
+        .prompt-line {
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+        }
+
+        .prompt-symbol {
+            color: var(--term-amber);
+            margin-right: 10px;
+            font-weight: bold;
+            user-select: none;
+        }
+
+        input[type="text"], input[type="password"], textarea {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-size: 1rem;
+            width: 100%;
+            caret-color: transparent; /* Replacing native cursor with block */
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        /* Blinking Block Cursor Overlay */
+        .input-wrapper {
+            position: relative;
+            width: 100%;
+            display: flex;
+            align-items: center;
+        }
+
+        .cursor-block {
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background-color: var(--term-green);
+            animation: blink 1s infinite;
+            margin-left: 2px;
+            vertical-align: middle;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--term-green);
+            color: var(--term-green);
+            padding: 12px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: var(--term-green);
+            color: var(--bg-color);
+            box-shadow: 0 0 12px rgba(0, 255, 102, 0.6);
+        }
+
+        /* System Console / Output Box */
+        .console-panel {
+            border: 1px solid var(--border-color);
+            background: rgba(4, 6, 8, 0.95);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            max-height: 180px;
+            grid-column: 1 / -1;
+        }
+
+        .console-header {
+            font-size: 0.85rem;
+            color: var(--term-amber);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .console-logs {
+            flex-grow: 1;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .log-entry {
+            line-height: 1.4;
+            word-break: break-all;
+        }
+
+        .log-time {
+            color: var(--term-dim-green);
+            margin-right: 8px;
+        }
+
+        .log-info { color: var(--term-green); }
+        .log-warn { color: var(--term-amber); }
+        .log-err  { color: var(--term-alert); }
+        .log-sys  { color: var(--term-cyan); }
+
+        .chat-panel {
+            border: 1px solid var(--term-dim-green);
+            background: rgba(4, 6, 8, 0.95);
+            min-height: 460px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--term-amber);
+            font-size: 0.85rem;
+        }
+
+        .chat-state {
+            color: var(--term-alert);
+            text-align: right;
+        }
+
+        .chat-layout {
+            display: grid;
+            grid-template-columns: minmax(110px, 0.38fr) minmax(0, 1fr);
+            flex: 1;
+            min-height: 0;
+        }
+
+        .chat-list {
+            border-right: 1px solid var(--border-color);
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        .chat-list-title, .chat-peer-label {
+            color: var(--term-cyan);
+            font-size: 0.72rem;
+            margin-bottom: 10px;
+            overflow-wrap: anywhere;
+        }
+
+        .chat-contact {
+            display: block;
+            width: 100%;
+            padding: 9px 7px;
+            margin-bottom: 6px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--term-dim-green);
+            text-align: left;
+            cursor: pointer;
+            overflow-wrap: anywhere;
+        }
+
+        .chat-contact:hover, .chat-contact.active {
+            border-color: var(--term-green);
+            color: var(--term-green);
+            background: rgba(0, 255, 102, 0.06);
+        }
+
+        .chat-transcript {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            padding: 12px;
+        }
+
+        .chat-peer-label {
+            padding-bottom: 10px;
+            border-bottom: 1px dashed var(--border-color);
+            margin-bottom: 0;
+        }
+
+        .chat-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 2px;
+            min-height: 220px;
+        }
+
+        .chat-empty {
+            color: var(--term-dim-green);
+            font-size: 0.8rem;
+            line-height: 1.6;
+            margin: auto 0;
+        }
+
+        .chat-message {
+            max-width: 92%;
+            padding: 9px;
+            border-left: 2px solid var(--term-cyan);
+            background: rgba(0, 217, 255, 0.05);
+            align-self: flex-start;
+        }
+
+        .chat-message.outgoing {
+            border-left-color: var(--term-green);
+            background: rgba(0, 255, 102, 0.05);
+            align-self: flex-end;
+        }
+
+        .chat-message-meta {
+            color: var(--term-amber);
+            font-size: 0.68rem;
+            margin-bottom: 6px;
+            overflow-wrap: anywhere;
+        }
+
+        .chat-message-body {
+            color: #fff;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .chat-footnote {
+            color: var(--term-dim-green);
+            border-top: 1px solid var(--border-color);
+            padding: 9px 12px;
+            font-size: 0.7rem;
+        }
+
+        @media (max-width: 520px) {
+            body { padding: 10px; }
+            .workstation { padding: 12px; }
+            .nav-tabs { flex-wrap: wrap; }
+            .tab-btn { padding: 7px 9px; font-size: 0.75rem; }
+            .prompt-line { align-items: flex-start; }
+            .prompt-symbol { font-size: 0.75rem; }
+            .chat-panel { min-height: 390px; }
+            .chat-layout { grid-template-columns: 105px minmax(0, 1fr); }
+        }
+
+        /* Footer */
+        footer {
+            margin-top: 20px;
+            font-size: 0.75rem;
+            color: var(--term-dim-green);
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+            padding-top: 10px;
+        }
+
+        :root {
+            --bg-color: #101512;
+            --term-green: #b5ef83;
+            --term-dim-green: #81958a;
+            --term-cyan: #8bcac2;
+            --term-amber: #e6bd78;
+            --panel-bg: #171e19;
+            --border-color: #303a33;
+            --font-stack: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+        }
+
+        body { padding: 0; color: #d9e2da; text-shadow: none; background: #101512; }
+        body::before { display: none; }
+        header, footer { display: none; }
+        button, input, textarea { font: inherit; }
+
+        .app-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(250px, 1fr);
+            gap: 0;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .chat-main { display: flex; min-width: 0; min-height: 100vh; flex-direction: column; padding: 26px clamp(18px, 3vw, 44px); }
+        .topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
+        .brand { color: var(--term-green); font-size: 0.9rem; letter-spacing: 0; }
+        .room-status { color: var(--term-dim-green); font-size: 0.76rem; }
+        .room-status::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--term-green); }
+        .room-title { margin: 25px 0 4px; color: #edf3ed; font-size: 1.15rem; font-weight: 500; }
+        .room-subtitle { color: var(--term-dim-green); font-size: 0.78rem; }
+        .transcript { display: flex; flex: 1; min-height: 260px; flex-direction: column; gap: 17px; overflow: auto; padding: 28px 0; }
+        .terminal-line { display: grid; grid-template-columns: minmax(170px, auto) minmax(0, 1fr); align-items: baseline; gap: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+        .terminal-prefix { color: var(--term-cyan); white-space: nowrap; }
+        .terminal-prefix.self { color: var(--term-green); }
+        .terminal-prefix.guest { color: var(--term-cyan); }
+        .terminal-text { color: #dce5dd; white-space: pre-wrap; }
+        .terminal-message { transition: opacity 0.3s ease; }
+        .terminal-line.system-line { color: var(--term-dim-green); font-size: 0.8rem; }
+        .terminal-line.system-line .terminal-prefix { color: var(--term-amber); }
+        .line-expiry { display: block; margin-top: 3px; color: #77857b; font-size: 0.68rem; }
+        .prompt-form { border-top: 1px solid var(--border-color); padding-top: 15px; }
+        .prompt-composer { display: flex; align-items: flex-start; gap: 10px; }
+        .prompt-label { flex: 0 0 auto; padding-top: 10px; color: var(--term-green); font-size: 0.82rem; white-space: nowrap; }
+        .message-input { min-height: 44px; max-height: 150px; resize: vertical; border: 1px solid var(--border-color); background: #0e130f; padding: 10px 12px; color: #edf3ed; caret-color: var(--term-green); line-height: 1.5; }
+        .message-input:focus { border-color: #718c78; }
+        .send-btn, .rail-btn, .drawer-close, .drawer-tab, .member-btn { border: 1px solid var(--border-color); background: transparent; color: #c8d3ca; cursor: pointer; }
+        .send-btn { min-height: 44px; padding: 0 16px; border-color: #668254; color: var(--term-green); }
+        .send-btn:hover, .rail-btn:hover, .member-btn:hover { background: #222c24; border-color: #718c78; }
+        .composer-note { display: flex; justify-content: space-between; gap: 12px; margin: 9px 0 0; color: var(--term-dim-green); font-size: 0.7rem; }
+        .rail { display: flex; flex-direction: column; gap: 22px; border-left: 1px solid var(--border-color); background: #151b16; padding: 24px 18px; }
+        .rail-heading { margin-bottom: 11px; color: #e3eae3; font-size: 0.77rem; font-weight: 600; }
+        .room-code { border: 1px solid var(--border-color); padding: 10px; color: var(--term-amber); font-size: 0.83rem; overflow-wrap: anywhere; }
+        .room-actions, .rail-actions { display: grid; gap: 7px; margin-top: 9px; }
+        .rail-btn { min-height: 36px; padding: 8px 10px; text-align: left; font-size: 0.75rem; }
+        .rail-btn.danger { color: #e58c82; }
+        .member-list { display: grid; gap: 8px; }
+        .member-btn { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px; text-align: left; font-size: 0.75rem; }
+        .member-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--term-cyan); }
+        .member-btn.self .member-dot { background: var(--term-green); }
+        .member-btn.active { border-color: #718c78; }
+        .member-id { display: block; color: var(--term-dim-green); font-size: 0.65rem; margin-top: 2px; }
+        .member-copy { min-width: 0; flex: 1; }
+        .signal-status { display: flex; align-items: center; gap: 6px; margin-left: auto; color: var(--term-dim-green); font-size: 0.6rem; white-space: nowrap; }
+        .signal-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+        .signal-bars span { width: 3px; height: var(--bar-height); background: var(--border-color); }
+        .signal-bars[data-level="1"] span:nth-child(-n+1), .signal-bars[data-level="2"] span:nth-child(-n+2), .signal-bars[data-level="3"] span:nth-child(-n+3), .signal-bars[data-level="4"] span:nth-child(-n+4) { background: var(--term-green); }
+        .signal-bars[data-level="0"] span { background: #566057; }
+        .activity-list { max-height: 130px; overflow: auto; color: var(--term-dim-green); font-size: 0.69rem; line-height: 1.6; }
+        .activity-line { border-bottom: 1px solid #252e27; padding: 5px 0; }
+        .rail-footer { margin-top: auto; color: #748078; font-size: 0.66rem; line-height: 1.6; }
+        .crypto-toggle { position: fixed; z-index: 10; top: 17px; right: 16px; padding: 7px 10px; background: #171e19; color: var(--term-cyan); font-size: 0.72rem; }
+        .crypto-drawer { position: fixed; z-index: 20; inset: 0 0 0 auto; width: min(440px, 100vw); overflow-y: auto; border-left: 1px solid var(--border-color); background: #151b16; padding: 22px; box-shadow: -16px 0 45px #0007; }
+        .crypto-drawer[hidden] { display: none; }
+        .drawer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; color: var(--term-green); }
+        .drawer-close { width: 34px; height: 34px; font-size: 1.1rem; }
+        .drawer-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+        .drawer-tab { padding: 7px 9px; color: var(--term-dim-green); font-size: 0.68rem; }
+        .drawer-tab.active { border-color: var(--term-green); color: var(--term-green); }
+        .drawer-content { display: none; }
+        .drawer-content.active { display: flex; }
+        .crypto-drawer .prompt-line { background: #0e130f; }
+        .crypto-drawer .action-btn { font-size: 0.75rem; padding: 10px; letter-spacing: 0; }
+        .console-panel { max-height: 130px; min-height: 84px; padding: 0; border: 0; background: transparent; grid-column: auto; }
+        .console-header { color: var(--term-dim-green); border-color: var(--border-color); font-size: 0.7rem; }
+        .console-logs { font-size: 0.68rem; }
+        .log-entry { word-break: break-word; }
+        .chat-panel, .workstation { display: none; }
+        .join-gate { display: none; }
+        body.join-required .app-shell, body.join-required .crypto-toggle, body.join-required .crypto-drawer { display: none; }
+        body.join-required .join-gate { display: flex; }
+        .join-gate { min-height: 100vh; align-items: center; justify-content: center; padding: 24px; }
+        .join-panel { width: min(100%, 440px); border: 1px solid var(--border-color); background: #151b16; padding: 24px; }
+        .join-brand { color: var(--term-green); font-size: 0.78rem; }
+        .join-title { margin: 28px 0 6px; color: #edf3ed; font-size: 1.2rem; font-weight: 500; }
+        .join-description, .join-note { color: var(--term-dim-green); font-size: 0.76rem; line-height: 1.6; }
+        .join-form { display: grid; gap: 10px; margin-top: 24px; }
+        .join-label { color: var(--term-cyan); font-size: 0.72rem; }
+        .join-code-input { width: 100%; border: 1px solid var(--border-color); background: #0e130f; padding: 12px; color: #edf3ed; font-size: 1rem; text-transform: uppercase; }
+        .join-code-input:focus { outline: 1px solid #718c78; }
+        .join-submit { min-height: 42px; border: 1px solid #668254; background: transparent; color: var(--term-green); cursor: pointer; }
+        .join-submit:disabled { color: var(--term-dim-green); cursor: not-allowed; }
+        .join-create { min-height: 42px; border: 1px solid var(--border-color); background: transparent; color: var(--term-cyan); cursor: pointer; }
+        .join-create:hover { background: #222c24; border-color: #718c78; }
+        .join-feedback { min-height: 1.4em; color: var(--term-amber); font-size: 0.73rem; }
+        .code-expiry { margin-top: 6px; color: var(--term-dim-green); font-size: 0.66rem; }
+
+        @media (max-width: 760px) {
+            .app-shell { grid-template-columns: minmax(0, 1fr); }
+            .chat-main { min-height: 72vh; padding: 17px; }
+            .rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border-left: 0; border-top: 1px solid var(--border-color); padding: 17px; }
+            .rail-footer { grid-column: 1 / -1; }
+            .crypto-toggle { top: 11px; right: 10px; }
+            .brand { padding-right: 105px; }
+            .terminal-line { grid-template-columns: 1fr; gap: 2px; }
+        }
+
+        @media (max-width: 420px) {
+            .rail { grid-template-columns: minmax(0, 1fr); }
+            .prompt-composer { flex-wrap: wrap; }
+            .prompt-label { flex: 1 1 100%; }
+            .message-input { flex: 1 1 70%; }
+            .send-btn { flex: 1 1 auto; }
+            .composer-note { flex-direction: column; }
+            .join-panel { padding: 18px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="join-gate" id="join-gate" aria-labelledby="join-title">
+        <section class="join-panel">
+            <div class="join-brand">PRO-ISO // SECURE CHAT</div>
+            <h1 class="join-title" id="join-title">Enter room code</h1>
+            <p class="join-description">Room: <span id="join-room-name">CR5 / PRIVATE</span></p>
+            <form class="join-form" id="join-form">
+                <label class="join-label" for="join-code-input">LOGIN CODE</label>
+                <input class="join-code-input" id="join-code-input" type="text" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" required>
+                <button class="join-submit" type="submit">JOIN ROOM</button>
+                <div class="join-feedback" id="join-feedback" role="status" aria-live="polite"></div>
+            </form>
+            <button class="join-create" id="join-create-room" type="button" onclick="createNewRoom()">CREATE ROOM</button>
+            <p class="join-note">Prototype only: messages use a plaintext relay. Do not send sensitive information.</p>
+            <p class="join-note">The room code changes every 10 minutes. Ask the room creator for the current code.</p>
+        </section>
+    </main>
+    <button class="rail-btn crypto-toggle" type="button" onclick="toggleCrypto()">ENCRYPTION TOOLS</button>
+    <div class="app-shell">
+        <main class="chat-main">
+            <div class="topline">
+                <div class="brand">PRO-ISO <span style="color:var(--term-dim-green)">// SECURE CHAT</span></div>
+                <div class="room-status" id="room-status">SESSION ACTIVE</div>
+            </div>
+            <h1 class="room-title">Room <span id="room-name">CR5 / PRIVATE</span></h1>
+            <div class="room-subtitle">PROTOTYPE // PLAINTEXT RELAY <span aria-hidden="true">·</span> NOT SECURE <span aria-hidden="true">·</span> MESSAGE LIFETIME 180 SEC</div>
+            <section class="transcript" id="transcript" aria-live="polite" aria-label="Chat transcript">
+                <div class="terminal-line system-line"><span class="terminal-prefix">PRO-ISO://</span><span class="terminal-text">Private room ready. Share the invite link and login code with your guest.</span></div>
+                <div class="terminal-line system-line"><span class="terminal-prefix">[NOTICE]</span><span class="terminal-text">Messages are removed from this page 180 seconds after they are sent.</span></div>
+            </section>
+            <form class="prompt-form" id="message-form">
+                <div class="prompt-composer">
+                    <label class="prompt-label" id="composer-label" for="message-input">PRO-ISO:user 087 CR5:</label>
+                    <textarea class="message-input" id="message-input" rows="1" placeholder="Type a message..." autocomplete="off" spellcheck="false"></textarea>
+                    <button class="send-btn" id="send-btn" type="button" aria-label="Send message">SEND</button>
+                </div>
+                <div class="composer-note"><span>ENTER TO SEND <span aria-hidden="true">·</span> SHIFT+ENTER FOR NEW LINE</span><span id="session-expiry">Session active</span></div>
+            </form>
+        </main>
+        <aside class="rail" aria-label="Room controls">
+            <section id="room-invite-section">
+                <h2 class="rail-heading">ROOM INVITE</h2>
+                <div class="room-code" id="login-code">CR5-7K2M</div>
+                <div class="code-expiry" id="code-expiry">ROTATES IN 10:00</div>
+                <div class="room-actions" id="room-invite-controls">
+                    <button class="rail-btn" type="button" onclick="copyInvite()">COPY INVITE LINK</button>
+                    <button class="rail-btn" type="button" onclick="shareInviteOnWhatsApp()">SHARE VIA WHATSAPP</button>
+                    <button class="rail-btn" type="button" onclick="copyLoginCode()">COPY LOGIN CODE</button>
+                    <button class="rail-btn" id="create-room-btn" type="button" onclick="createNewRoom()" hidden>CREATE NEW ROOM</button>
+                </div>
+            </section>
+            <section>
+                <h2 class="rail-heading">IN THIS ROOM <span id="room-member-count" style="color:var(--term-dim-green)">(2/2)</span></h2>
+                <div class="member-list" id="member-list" aria-live="polite"></div>
+            </section>
+            <section>
+                <h2 class="rail-heading">ROOM ACTIONS</h2>
+                <div class="rail-actions">
+                    <button class="rail-btn" type="button" onclick="scanRoom()">SCAN ROOM</button>
+                    <button class="rail-btn" type="button" onclick="leaveRoom()">LEAVE ROOM</button>
+                    <button class="rail-btn danger" id="end-session-btn" type="button" onclick="endSession()">END SESSION</button>
+                </div>
+            </section>
+            <section>
+                <h2 class="rail-heading">ACTIVITY LOG</h2>
+                <div class="activity-list" id="activity-list">
+                    <div class="activity-line">ROOM // CR5 ready</div>
+                    <div class="activity-line">SCRUBBER // 180 seconds</div>
+                    <div class="console-logs" id="activity-log" aria-live="polite"></div>
+                </div>
+            </section>
+            <div class="rail-footer">Private room capacity: 2 people. Messages clear after 180 seconds.</div>
+        </aside>
+    </div>
+
+    <aside class="crypto-drawer" id="crypto-drawer" aria-label="Encryption tools" hidden>
+        <div class="drawer-top"><span>ENCRYPTION TOOLS</span><button class="drawer-close" type="button" onclick="toggleCrypto(false)" aria-label="Close encryption tools">×</button></div>
+        <nav class="drawer-tabs">
+            <button class="drawer-tab active" type="button" onclick="switchTab('encrypt')">ENCRYPT</button>
+            <button class="drawer-tab" type="button" onclick="switchTab('decrypt')">DECRYPT</button>
+            <button class="drawer-tab" type="button" onclick="switchTab('keys')">KEYS</button>
+        </nav>
+        <div id="tab-encrypt" class="tab-content drawer-content active">
+            <div class="input-group"><label>RECIPIENT KEY</label><div class="prompt-line"><span class="prompt-symbol">to:$</span><input type="text" id="enc-recipient" placeholder="Public key or room peer"></div></div>
+            <div class="input-group"><label>MESSAGE</label><div class="prompt-line"><span class="prompt-symbol">msg:$</span><textarea id="enc-payload" placeholder="Message to encrypt"></textarea></div></div>
+            <div class="input-group"><label>SESSION SECRET</label><div class="prompt-line"><span class="prompt-symbol">key:$</span><input type="password" id="enc-key" placeholder="Enter secret"></div></div>
+            <button class="action-btn" type="button" onclick="executeEncrypt()">ENCRYPT (NOT IMPLEMENTED)</button>
+        </div>
+        <div id="tab-decrypt" class="tab-content drawer-content">
+            <div class="input-group"><label>SENDER</label><div class="prompt-line"><span class="prompt-symbol">from:$</span><input type="text" id="dec-sender" placeholder="Sender ID"></div></div>
+            <div class="input-group"><label>CIPHERTEXT</label><div class="prompt-line"><span class="prompt-symbol">data:$</span><textarea id="dec-cipher" placeholder="Paste ciphertext"></textarea></div></div>
+            <div class="input-group"><label>SESSION SECRET</label><div class="prompt-line"><span class="prompt-symbol">key:$</span><input type="password" id="dec-key" placeholder="Enter secret"></div></div>
+            <button class="action-btn" type="button" onclick="executeDecrypt()">DECRYPT (NOT IMPLEMENTED)</button>
+        </div>
+        <div id="tab-keys" class="tab-content drawer-content">
+            <div class="input-group"><label>LOCAL PUBLIC KEY</label><div class="prompt-line"><span class="prompt-symbol">pub:$</span><input type="text" id="my-pub-key" value="0x8F92A113B904EE881C099238FF01A39C" readonly></div></div>
+            <div id="decrypted-output" class="chat-footnote">Decrypted text appears in the room transcript and expires with the message.</div>
+            <button class="action-btn" type="button" onclick="generateNewKeys()">ROTATE PUBLIC KEY</button>
+        </div>
+    </aside>
+
+    <script src="transport.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
